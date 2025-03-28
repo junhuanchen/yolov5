@@ -19,15 +19,27 @@ class Detect(nn.Module):
         self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
         self.export = False  # onnx export
 
+    # 注意，只有使用 models/export.py 导出onnx的时候才需要做这个修改，导出后需要将其改回。
+    # def forward(self, x):
+    #     # x = x.copy()  # for profiling
+    #     z = []  # inference output
+    #     self.training |= self.export
+    #     for i in range(self.nl):
+    #         x[i] = self.m[i](x[i])  # conv
+    #         bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
+    #         x[i] = x[i].permute(0, 2, 3, 1).contiguous()
+    #     return x
+
     def forward(self, x):
+        # 导出时用，如果不改回会训练报错
+        # return [self.m[i](x[i]).permute(0,2,3,1).contiguous() for i in range(self.nl)]
         # x = x.copy()  # for profiling
         z = []  # inference output
         self.training |= self.export
         for i in range(self.nl):
             x[i] = self.m[i](x[i])  # conv
             bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
-            x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
-
+            x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous() # 训练时用，检测可用
             if not self.training:  # inference
                 if self.grid[i].shape[2:4] != x[i].shape[2:4]:
                     self.grid[i] = self._make_grid(nx, ny).to(x[i].device)
@@ -128,8 +140,11 @@ class Model(nn.Module):
         m = self.model[-1]  # Detect() module
         for mi, s in zip(m.m, m.stride):  #  from
             b = mi.bias.view(m.na, -1)  # conv.bias(255) to (3,85)
-            b[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
-            b[:, 5:] += math.log(0.6 / (m.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
+            with torch.no_grad(): # DLS
+                b[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
+                b[:, 5:] += math.log(0.6 / (m.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
+            # b[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
+            # b[:, 5:] += math.log(0.6 / (m.nc - 0.99)) if cf is None else torch.log(cf / cf.sum())  # cls
             mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
 
     def _print_biases(self):

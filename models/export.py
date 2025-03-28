@@ -39,19 +39,44 @@ if __name__ == '__main__':
         print('TorchScript export failure: %s' % e)
 
     # ONNX export
+    # try:
+    #     import onnx
+
+    #     print('\nStarting ONNX export with onnx %s...' % onnx.__version__)
+    #     f = opt.weights.replace('.pt', '.onnx')  # filename
+    #     model.fuse()  # only for ONNX
+    #     torch.onnx.export(model, img, f, verbose=False, opset_version=11, input_names=['images'],
+    #                       output_names=['classes', 'boxes'] if y is None else ['output'])
+
+    #     # Checks
+    #     onnx_model = onnx.load(f)  # load onnx model
+    #     onnx.checker.check_model(onnx_model)  # check onnx model
+    #     print(onnx.helper.printable_graph(onnx_model.graph))  # print a human readable model
+    #     print('ONNX export success, saved as %s' % f)
+    # except Exception as e:
+    #     print('ONNX export failure: %s' % e)
+    
+    # ONNX export
     try:
         import onnx
+        from onnxsim import simplify
 
         print('\nStarting ONNX export with onnx %s...' % onnx.__version__)
         f = opt.weights.replace('.pt', '.onnx')  # filename
         model.fuse()  # only for ONNX
-        torch.onnx.export(model, img, f, verbose=False, opset_version=12, input_names=['images'],
-                          output_names=['classes', 'boxes'] if y is None else ['output'])
-
+        torch.onnx.export(model, img, f, verbose=False, opset_version=11, input_names=['images'],
+                        output_names=['small', 'medium', 'big'])
         # Checks
         onnx_model = onnx.load(f)  # load onnx model
         onnx.checker.check_model(onnx_model)  # check onnx model
         print(onnx.helper.printable_graph(onnx_model.graph))  # print a human readable model
+        # simplify
+        onnx_model, check = simplify(
+            onnx_model,
+            dynamic_input_shape=False,
+            input_shapes=None)
+        assert check, 'assert check failed'
+        onnx.save(onnx_model, f)
         print('ONNX export success, saved as %s' % f)
     except Exception as e:
         print('ONNX export failure: %s' % e)

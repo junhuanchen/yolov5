@@ -530,6 +530,8 @@ def build_targets(p, targets, model):
             r = t[None, :, 4:6] / anchors[:, None]  # wh ratio
             j = torch.max(r, 1. / r).max(2)[0] < model.hyp['anchor_t']  # compare
             # j = wh_iou(anchors, t[:, 4:6]) > model.hyp['iou_t']  # iou(3,n) = wh_iou(anchors(3,2), gwh(n,2))
+            at = at.to(j.device)
+            a = at[j]
             a, t = at[j], t.repeat(na, 1, 1)[j]  # filter
 
             # overlaps
@@ -900,7 +902,7 @@ def output_to_target(output, width, height):
     targets = []
     for i, o in enumerate(output):
         if o is not None:
-            for pred in o:
+            for pred in o.cpu():
                 box = pred[:4]
                 w = (box[2] - box[0]) / width
                 h = (box[3] - box[1]) / height
