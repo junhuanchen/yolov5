@@ -20,19 +20,10 @@ class Detect(nn.Module):
         self.export = False  # onnx export
 
     # 注意，只有使用 models/export.py 导出onnx的时候才需要做这个修改，导出后需要将其改回。
-    # def forward(self, x):
-    #     # x = x.copy()  # for profiling
-    #     z = []  # inference output
-    #     self.training |= self.export
-    #     for i in range(self.nl):
-    #         x[i] = self.m[i](x[i])  # conv
-    #         bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
-    #         x[i] = x[i].permute(0, 2, 3, 1).contiguous()
-    #     return x
+    def __forward__(self, x):
+        return [self.m[i](x[i]).permute(0,2,3,1).contiguous() for i in range(self.nl)]
 
     def forward(self, x):
-        # 导出时用，如果不改回会训练报错
-        # return [self.m[i](x[i]).permute(0,2,3,1).contiguous() for i in range(self.nl)]
         # x = x.copy()  # for profiling
         z = []  # inference output
         self.training |= self.export
